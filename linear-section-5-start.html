@@ -48,13 +48,6 @@
         useBias: true
       }));
 
-      model.add(tf.layers.dense({
-        inputDim: 3,
-        units: 7,
-        activation: "linear",
-        useBias: false
-      }))
-
       const optimizer = tf.train.sgd(0.1);
 
       model.compile({
@@ -64,13 +57,40 @@
 
       tfvis.show.modelSummary({ name: `Model Summary`, tab: `Model` }, model);
       tfvis.show.layer({ name: `Layer 1`, tab: `Model Inspection` }, model.getLayer(undefined, 0));
-      tfvis.show.layer({ name: `Layer 2`, tab: `Model Inspection` }, model.getLayer(undefined, 1));
+      // tfvis.show.layer({ name: `Layer 2`, tab: `Model Inspection` }, model.getLayer(undefined, 1));
 
       model.summary();
 
       return model;
     }
 
+    async function trainModel(model, trainingFeatureTensor, trainingLabelTensor) {
+      const { onBatchEnd, onEpochEnd } = tfvis.show.fitCallbacks(
+        { name: "Training Performance" },
+        ["loss"]
+      );
+
+      await model.fit(trainingFeatureTensor, trainingLabelTensor, {
+        epochs: 20,
+        shuffle: true,
+        callbacks: {
+          onBatchEnd,
+          onEpochEnd,
+          onEpochBegin: function () {
+            tfvis.show.layer({ name: `Layer 1` }, model.getLayer(undefined, 0));
+          }
+        }
+      });
+    }
+
+    async function testModel(model, testingFeatureTensor, testingLabelTensor) {
+      const result = model.evaluate(testingFeatureTensor, testingLabelTensor);
+
+      const lossTensor = Array.isArray(result) ? result[0] : result;
+
+      const loss = await lossTensor.dataSync()[0];
+      console.log(`Testing Loss: ${loss}`);
+    }
 
 
     async function run() {
@@ -105,6 +125,9 @@
       const [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabel.tensor, 2);
 
       const model = createModel();
+
+      await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
+      await testModel(model, testingFeatureTensor, testingLabelTensor)
     }
 
     run();
