@@ -8,8 +8,33 @@
 </head>
 
 <body>
+  <button onclick="saveModel()">Save Model</button>
+  <!-- <button onclick="loadModel()">Load Model</button> -->
+
+  <h3>Load Downloaded Model</h3>
+
+  <input type="file" id="modelUpload" multiple />
+
+  <button onclick="loadDownloadedModel()">
+    Load Downloaded Model
+  </button>
+
+  <h3>Predict House Price</h3>
+
+  <input type="number" id="sqftInput" placeholder="Enter square feet" />
+
+  <button onclick="predict()">Predict Price</button>
+
+  <p id="predictionResult"></p>
 
   <script type="text/javascript">
+    let model;
+
+    let featureMin;
+    let featureMax;
+
+    let labelMin;
+    let labelMax;
 
     async function plot(pointsArray, featureName) {
       tfvis.render.scatterplot(
@@ -41,6 +66,7 @@
     function createModel() {
       const model = tf.sequential();
 
+      // Here we decide how many inputs we can have. Since we are only checking square feet, we only need inputDim to be 1.
       model.add(tf.layers.dense({
         inputDim: 1,
         units: 1,
@@ -57,7 +83,6 @@
 
       tfvis.show.modelSummary({ name: `Model Summary`, tab: `Model` }, model);
       tfvis.show.layer({ name: `Layer 1`, tab: `Model Inspection` }, model.getLayer(undefined, 0));
-      // tfvis.show.layer({ name: `Layer 2`, tab: `Model Inspection` }, model.getLayer(undefined, 1));
 
       model.summary();
 
@@ -70,8 +95,9 @@
         ["loss"]
       );
 
+      // Epochs decides how many times the AI runs the training model
       await model.fit(trainingFeatureTensor, trainingLabelTensor, {
-        epochs: 20,
+        epochs: 5,
         shuffle: true,
         callbacks: {
           onBatchEnd,
@@ -92,6 +118,109 @@
       console.log(`Testing Loss: ${loss}`);
     }
 
+    async function saveModel() {
+      if (!model) {
+        console.log("No model to save.");
+        return;
+      }
+
+      await model.save("downloads://house-price-model");
+
+      console.log("Model saved!");
+    }
+
+    async function loadModel() {
+      model = await tf.loadLayersModel(
+        "localstorage://house-price-model"
+      );
+
+      console.log("Model loaded!");
+
+      model.summary();
+
+      tfvis.show.modelSummary(
+        { name: `Loaded Model Summary`, tab: `Model` },
+        model
+      );
+    }
+
+    async function loadDownloadedModel() {
+      const files =
+        document.getElementById("modelUpload").files;
+
+      if (files.length === 0) {
+        console.log("No files selected.");
+        return;
+      }
+
+      // Find correct files regardless of order
+      const jsonFile =
+        Array.from(files).find(file =>
+          file.name.endsWith(".json")
+        );
+
+      const weightsFile =
+        Array.from(files).find(file =>
+          file.name.endsWith(".bin")
+        );
+
+      if (!jsonFile || !weightsFile) {
+        console.log("Missing model files.");
+        return;
+      }
+
+      model = await tf.loadLayersModel(
+        tf.io.browserFiles([
+          jsonFile,
+          weightsFile
+        ])
+      );
+
+      console.log("Downloaded model loaded!");
+
+      model.summary();
+
+      tfvis.show.modelSummary(
+        { name: "Loaded Downloaded Model" },
+        model
+      );
+    }
+
+    async function predict() {
+      if (!model) {
+        console.log("Model not loaded.");
+        return;
+      }
+
+      const inputValue =
+        Number(document.getElementById("sqftInput").value);
+
+      const inputTensor = tf.tensor2d([[inputValue]]);
+
+      // Normalise input
+      const normalisedInput = inputTensor
+        .sub(featureMin)
+        .div(featureMax.sub(featureMin));
+
+      // Predict
+      const predictionTensor =
+        model.predict(normalisedInput);
+
+      // Denormalise prediction
+      const denormalisedPrediction = denormalise(
+        predictionTensor,
+        labelMin,
+        labelMax
+      );
+
+      const prediction =
+        denormalisedPrediction.dataSync()[0];
+
+      document.getElementById(
+        "predictionResult"
+      ).innerText =
+        `Predicted Price: $${prediction.toFixed(2)}`;
+    }
 
     async function run() {
       // Import from CSV
@@ -121,10 +250,17 @@
       const normalisedFeature = normalise(featureTensor);
       const normalisedLabel = normalise(labelTensor);
 
+      // Prediction feature
+      featureMin = normalisedFeature.min;
+      featureMax = normalisedFeature.max;
+
+      labelMin = normalisedLabel.min;
+      labelMax = normalisedLabel.max;
+
       const [trainingFeatureTensor, testingFeatureTensor] = tf.split(normalisedFeature.tensor, 2);
       const [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabel.tensor, 2);
 
-      const model = createModel();
+      model = createModel();
 
       await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
       await testModel(model, testingFeatureTensor, testingLabelTensor)
