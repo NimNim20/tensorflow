@@ -3,32 +3,113 @@
 
 <head>
   <title>TensorFlow.js linear regression</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+
+  <style>
+    body {
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1 0 auto;
+    }
+
+    pre {
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
 </head>
 
 <body>
-  <button onclick="saveModel()">Save Model</button>
-  <!-- <button onclick="loadModel()">Load Model</button> -->
+  <!--   Header   -->
+  <div class="section no-pad-bot" id="index-banner">
+    <div class="container">
+      <h5 class="header center blue-text small">Linear regression with TensorFlow.js</h5>
+      <div class="row center">
+        <h6 class="header col s12 light">Train a model to predict medical insurance cost based on age.</h6>
+      </div>
+    </div>
+  </div>
 
-  <h3>Load Downloaded Model</h3>
+  <!--   Misc buttons   -->
+  <div class="section no-pad-bot light-blue lighten-4">
+    <div class="container">
+      <div class="row center">
+        <br />
+        <button id="toggle-button" class="waves-effect waves-light light-blue btn-small" onclick="toggleVisor()">Toggle
+          Visor</button>
+        <br /><br />
+      </div>
+    </div>
+  </div>
 
-  <input type="file" id="modelUpload" multiple />
+  <!--   Main functionality   -->
+  <div class="container">
+    <div class="section">
 
-  <button onclick="loadDownloadedModel()">
-    Load Downloaded Model
-  </button>
+      <div class="row">
+        <!--   Training   -->
+        <div class="col s12 m6">
+          <div class="icon-block">
+            <h3 class="center light-blue-text"><i class="material-icons" style="font-size: 2em">build</i></h3>
+            <h5 class="center">Train & Test</h5>
 
-  <h3>Predict House Price</h3>
+            <p class="light"></p>
 
-  <input type="number" id="sqftInput" placeholder="Enter square feet" />
+            <div>
+              <p><label>Training status:</label></p>
+              <pre class="grey lighten-4" style="overflow-x: auto"><em id="model-status">Loading data...</em></pre>
 
-  <button onclick="predict()">Predict Price</button>
+              <p><label>Epoch:</label></p>
+              <pre class="grey lighten-4"><em id="epoch-status">0</em></pre>
 
-  <p id="predictionResult"></p>
+              <p><label>Testing status:</label></p>
+              <pre class="grey lighten-4" style="overflow-x: auto"><em id="testing-status">Not yet tested</em></pre>
+
+              <button autocomplete="off" id="train-button" class="waves-effect light-blue waves-light btn" disabled
+                onclick="train()">Train New Model</button>
+              <button autocomplete="off" id="test-button" class="waves-effect light-blue waves-light btn" disabled
+                onclick="test()">Test Model</button>
+            </div>
+            <br />
+
+            <div>
+              <button autocomplete="off" id="load-button" class="waves-effect light-blue waves-light btn-small" disabled
+                onclick="load()">Load Model</button>
+              <button autocomplete="off" id="save-button" class="waves-effect light-blue waves-light btn-small" disabled
+                onclick="save()">Save Model</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!--   Prediction   -->
+        <div class="col s12 m6">
+          <div class="icon-block">
+            <h3 class="center light-blue-text"><i class="material-icons" style="font-size: 2em">timeline</i></h3>
+            <h5 class="center">Predict</h5>
+
+            <label>Age: <input type="number" id="prediction-input" placeholder="27" /></label>
+            <button autocomplete="off" id="predict-button" class="waves-effect light-blue waves-light btn" disabled
+              onclick="predict()">Predict insurance cost</button>
+            <p><strong id="prediction-output"></strong></p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <script type="text/javascript">
     let model;
+
+    let points;
 
     let featureMin;
     let featureMax;
@@ -36,20 +117,59 @@
     let labelMin;
     let labelMax;
 
-    async function plot(pointsArray, featureName) {
+    let normalisedFeature;
+    let normalisedLabel;
+
+    let trainingFeatureTensor;
+    let testingFeatureTensor;
+
+    let trainingLabelTensor;
+    let testingLabelTensor;
+
+    function toggleVisor() {
+      tfvis.visor().toggle();
+    }
+
+    async function plot(pointsArray, featureName, predictedPointsArray = null) {
+      const values = [pointsArray];
+      const series = ["original"];
+      if (Array.isArray(predictedPointsArray)) {
+        values.push(predictedPointsArray);
+        series.push("predicted");
+      }
+
       tfvis.render.scatterplot(
-        { name: `${featureName} vs House Price` },
-        { values: [pointsArray], series: ["original"] },
+        { name: `${featureName} vs Insurance Cost` },
+        { values, series },
         {
           xLabel: featureName,
           yLabel: "Price",
         }
-      )
+      );
     }
 
-    function normalise(tensor) {
-      const min = tensor.min();
-      const max = tensor.max();
+    async function plotPredictionLine() {
+      const [xs, ys] = tf.tidy(() => {
+
+        const normalisedXs = tf.linspace(0, 1, 100);
+        const normalisedYs = model.predict(normalisedXs.reshape([100, 1]));
+
+        const xs = denormalise(normalisedXs, normalisedFeature.min, normalisedFeature.max);
+        const ys = denormalise(normalisedYs, normalisedLabel.min, normalisedLabel.max);
+
+        return [xs.dataSync(), ys.dataSync()];
+      });
+
+      const predictedPoints = Array.from(xs).map((val, i) => {
+        return { x: val, y: ys[i] }
+      });
+
+      await plot(points, "Age", predictedPoints);
+    }
+
+    function normalise(tensor, previousMin = null, previousMax = null) {
+      const min = previousMin || tensor.min();
+      const max = previousMax || tensor.max();
       const normalisedTensor = tensor.sub(min).div(max.sub(min));
       return {
         tensor: normalisedTensor,
@@ -74,7 +194,7 @@
         useBias: true
       }));
 
-      const optimizer = tf.train.sgd(0.1);
+      const optimizer = tf.train.adam(0.01);
 
       model.compile({
         optimizer,
@@ -101,12 +221,32 @@
         shuffle: true,
         callbacks: {
           onBatchEnd,
-          onEpochEnd,
-          onEpochBegin: function () {
+          onEpochBegin: async function () {
             tfvis.show.layer({ name: `Layer 1` }, model.getLayer(undefined, 0));
+            await plotPredictionLine();
+          },
+          onEpochEnd: async function (epoch, logs) {
+            document.getElementById("epoch-status").innerText =
+              `Epoch ${epoch + 1} | Loss: ${logs.loss.toFixed(4)}`;
           }
         }
       });
+    }
+
+    async function train() {
+      await trainModel(
+        model,
+        trainingFeatureTensor,
+        trainingLabelTensor
+      );
+
+      await plotPredictionLine();
+
+      document
+        .getElementById("predict-button")
+        .removeAttribute("disabled");
+
+      console.log("Training complete!")
     }
 
     async function testModel(model, testingFeatureTensor, testingLabelTensor) {
@@ -115,75 +255,59 @@
       const lossTensor = Array.isArray(result) ? result[0] : result;
 
       const loss = await lossTensor.dataSync()[0];
-      console.log(`Testing Loss: ${loss}`);
+
+      return loss;
     }
 
-    async function saveModel() {
-      if (!model) {
-        console.log("No model to save.");
-        return;
-      }
-
-      await model.save("downloads://house-price-model");
-
-      console.log("Model saved!");
-    }
-
-    async function loadModel() {
-      model = await tf.loadLayersModel(
-        "localstorage://house-price-model"
+    async function test() {
+      const loss = await testModel(
+        model,
+        testingFeatureTensor,
+        testingLabelTensor
       );
+
+      document.getElementById("testing-status").innerText =
+        `Test Loss: ${loss.toFixed(4)}`;
+
+      const preds = model.predict(testingFeatureTensor);
+
+      await plot(
+        await testingFeatureTensor.array(),
+        "Age",
+        await preds.array()
+      );
+
+      console.log("Testing Complete!");
+    }
+
+    async function save() {
+      await model.save("localstorage://insurance-model");
+    }
+
+    async function load() {
+      model = await tf.loadLayersModel("localstorage://insurance-model");
+
+      document.getElementById("predict-button").removeAttribute("disabled");
 
       console.log("Model loaded!");
 
-      model.summary();
-
       tfvis.show.modelSummary(
-        { name: `Loaded Model Summary`, tab: `Model` },
+        { name: `Model Summary`, tab: `Model` },
         model
       );
-    }
 
-    async function loadDownloadedModel() {
-      const files =
-        document.getElementById("modelUpload").files;
-
-      if (files.length === 0) {
-        console.log("No files selected.");
-        return;
-      }
-
-      // Find correct files regardless of order
-      const jsonFile =
-        Array.from(files).find(file =>
-          file.name.endsWith(".json")
-        );
-
-      const weightsFile =
-        Array.from(files).find(file =>
-          file.name.endsWith(".bin")
-        );
-
-      if (!jsonFile || !weightsFile) {
-        console.log("Missing model files.");
-        return;
-      }
-
-      model = await tf.loadLayersModel(
-        tf.io.browserFiles([
-          jsonFile,
-          weightsFile
-        ])
+      tfvis.show.layer(
+        { name: `Layer 1`, tab: `Model Inspection` },
+        model.getLayer(undefined, 0)
       );
 
-      console.log("Downloaded model loaded!");
+      await plotPredictionLine();
 
-      model.summary();
+      document.getElementById("model-status").innerText =
+        "Model loaded. Ready to predict.";
 
-      tfvis.show.modelSummary(
-        { name: "Loaded Downloaded Model" },
-        model
-      );
+      document.getElementById("train-button").removeAttribute("disabled");
+      document.getElementById("test-button").removeAttribute("disabled");
     }
 
     async function predict() {
@@ -192,8 +316,13 @@
         return;
       }
 
-      const inputValue =
-        Number(document.getElementById("sqftInput").value);
+      const inputValue = Number(document.getElementById("prediction-input").value);
+
+      if (isNaN(inputValue)) {
+        document.getElementById("prediction-output").innerText =
+          "Please enter a valid age.";
+        return;
+      }
 
       const inputTensor = tf.tensor2d([[inputValue]]);
 
@@ -217,53 +346,73 @@
         denormalisedPrediction.dataSync()[0];
 
       document.getElementById(
-        "predictionResult"
+        "prediction-output"
       ).innerText =
-        `Predicted Price: $${prediction.toFixed(2)}`;
+        `Predicted Insurance Cost: $${prediction.toFixed(2)}`;
     }
 
     async function run() {
-      // Import from CSV
-      const houseSalesDataset = tf.data.csv("kc_house_data.csv");
+      document.getElementById("model-status").innerText =
+        "Loading dataset...";
 
-      // Extract x and y values to plot
-      const pointsDataset = houseSalesDataset.map(record => ({
-        x: record.sqft_living,
-        y: record.price,
-      }));
-      const points = await pointsDataset.toArray();
-      if (points.length % 2 !== 0) { // If odd number of elements
-        points.pop(); // remove one element
+      const insuranceDataSet = tf.data.csv("medical_insurance_cost_dataset.csv");
+
+      const pointsDataset = insuranceDataSet.map(record => ({
+        x: Number(record.age),
+        y: Number(record.annual_medical_cost_usd),
+      }))
+        .filter(point =>
+          !isNaN(point.x) &&
+          !isNaN(point.y)
+        );
+
+      points = await pointsDataset.toArray();
+
+      if (points.length % 2 !== 0) {
+        points.pop();
       }
+
       tf.util.shuffle(points);
-      plot(points, "Square feet");
+      plot(points, "Age");
 
-      // Extract Features (inputs)
+      document.getElementById("model-status").innerText =
+        "Dataset loaded. Preparing tensors...";
+
+      // Create tensors
       const featureValues = points.map(p => p.x);
-      const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 1]);
-
-      // Extract Labels (outputs)
       const labelValues = points.map(p => p.y);
+
+      const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 1]);
       const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
 
-      // Normalise features and labels
-      const normalisedFeature = normalise(featureTensor);
-      const normalisedLabel = normalise(labelTensor);
+      // Normalize
+      normalisedFeature = normalise(featureTensor);
+      normalisedLabel = normalise(labelTensor);
 
-      // Prediction feature
       featureMin = normalisedFeature.min;
       featureMax = normalisedFeature.max;
-
       labelMin = normalisedLabel.min;
       labelMax = normalisedLabel.max;
 
-      const [trainingFeatureTensor, testingFeatureTensor] = tf.split(normalisedFeature.tensor, 2);
-      const [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabel.tensor, 2);
+      document.getElementById("model-status").innerText =
+        "Tensors ready. Creating model...";
+
+      // Split data
+      [trainingFeatureTensor, testingFeatureTensor] =
+        tf.split(normalisedFeature.tensor, 2);
+
+      [trainingLabelTensor, testingLabelTensor] =
+        tf.split(normalisedLabel.tensor, 2);
 
       model = createModel();
 
-      await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
-      await testModel(model, testingFeatureTensor, testingLabelTensor)
+      document.getElementById("model-status").innerText =
+        "Model created. Ready to train.";
+
+      document.getElementById("train-button").removeAttribute("disabled");
+      document.getElementById("test-button").removeAttribute("disabled");
+      document.getElementById("load-button").removeAttribute("disabled");
+      document.getElementById("save-button").removeAttribute("disabled");
     }
 
     run();
