@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>TensorFlow.js linear regression</title>
+  <title>TensorFlow.js Linear Regression</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
@@ -27,166 +27,336 @@
 </head>
 
 <body>
-  <!--   Header   -->
-  <div class="section no-pad-bot" id="index-banner">
+  <div class="section no-pad-bot">
     <div class="container">
-      <h5 class="header center blue-text small">Linear regression with TensorFlow.js</h5>
+      <h5 class="header center blue-text small">
+        Linear Regression with TensorFlow.js
+      </h5>
+
       <div class="row center">
-        <h6 class="header col s12 light">Train a model to predict medical insurance cost based on age.</h6>
+        <h6 class="header col s12 light">
+          Train a model to predict medical insurance cost based on age.
+        </h6>
       </div>
     </div>
   </div>
 
-  <!--   Misc buttons   -->
+  <!-- Visor Sideview -->
   <div class="section no-pad-bot light-blue lighten-4">
     <div class="container">
       <div class="row center">
         <br />
-        <button id="toggle-button" class="waves-effect waves-light light-blue btn-small" onclick="toggleVisor()">Toggle
-          Visor</button>
+
+        <button class="waves-effect waves-light light-blue btn-small" onclick="toggleVisor()">
+          Toggle Visor
+        </button>
+
         <br /><br />
       </div>
     </div>
   </div>
 
-  <!--   Main functionality   -->
   <div class="container">
     <div class="section">
 
       <div class="row">
-        <!--   Training   -->
+
+        <!-- Training section -->
         <div class="col s12 m6">
           <div class="icon-block">
-            <h3 class="center light-blue-text"><i class="material-icons" style="font-size: 2em">build</i></h3>
+
+            <h3 class="center light-blue-text">
+              <i class="material-icons" style="font-size: 2em">build</i>
+            </h3>
+
             <h5 class="center">Train & Test</h5>
 
-            <p class="light"></p>
+            <p><label>Training status:</label></p>
 
-            <div>
-              <p><label>Training status:</label></p>
-              <pre class="grey lighten-4" style="overflow-x: auto"><em id="model-status">Loading data...</em></pre>
+            <pre class="grey lighten-4">
+              <em id="model-status">Loading...</em>
+            </pre>
 
-              <p><label>Epoch:</label></p>
-              <pre class="grey lighten-4"><em id="epoch-status">0</em></pre>
+            <p><label>Epoch:</label></p>
 
-              <p><label>Testing status:</label></p>
-              <pre class="grey lighten-4" style="overflow-x: auto"><em id="testing-status">Not yet tested</em></pre>
+            <pre class="grey lighten-4">
+              <em id="epoch-status">0</em>
+            </pre>
 
-              <button autocomplete="off" id="train-button" class="waves-effect light-blue waves-light btn" disabled
-                onclick="train()">Train New Model</button>
-              <button autocomplete="off" id="test-button" class="waves-effect light-blue waves-light btn" disabled
-                onclick="test()">Test Model</button>
-            </div>
-            <br />
+            <p><label>Testing status:</label></p>
 
-            <div>
-              <button autocomplete="off" id="load-button" class="waves-effect light-blue waves-light btn-small" disabled
-                onclick="load()">Load Model</button>
-              <button autocomplete="off" id="save-button" class="waves-effect light-blue waves-light btn-small" disabled
-                onclick="save()">Save Model</button>
-            </div>
+            <pre class="grey lighten-4">
+              <em id="testing-status">Not yet tested</em>
+            </pre>
 
+            <button id="train-button" class="waves-effect light-blue waves-light btn" disabled onclick="train()">
+              Train Model
+            </button>
+
+            <button id="test-button" class="waves-effect light-blue waves-light btn" disabled onclick="test()">
+              Test Model
+            </button>
+            <br /><br />
+            <button id="load-button" class="waves-effect light-blue waves-light btn-small" disabled
+              onclick="loadModel()">
+              Load Model
+            </button>
+
+            <button id="save-button" class="waves-effect light-blue waves-light btn-small" disabled
+              onclick="saveModel()">
+              Save Model
+            </button>
           </div>
         </div>
 
-        <!--   Prediction   -->
+        <!-- Prediction section -->
         <div class="col s12 m6">
           <div class="icon-block">
-            <h3 class="center light-blue-text"><i class="material-icons" style="font-size: 2em">timeline</i></h3>
+            <h3 class="center light-blue-text">
+              <i class="material-icons" style="font-size: 2em">timeline</i>
+            </h3>
+
             <h5 class="center">Predict</h5>
 
-            <label>Age: <input type="number" id="prediction-input" placeholder="27" /></label>
-            <button autocomplete="off" id="predict-button" class="waves-effect light-blue waves-light btn" disabled
-              onclick="predict()">Predict insurance cost</button>
-            <p><strong id="prediction-output"></strong></p>
+            <label>
+              Age:
+              <input type="number" id="prediction-input" placeholder="27">
+            </label>
+
+            <button id="predict-button" class="waves-effect light-blue waves-light btn" disabled onclick="predict()">
+              Predict Insurance Cost
+            </button>
+
+            <p>
+              <strong id="prediction-output"></strong>
+            </p>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <script type="text/javascript">
-    let model;
+  <script>
 
-    let points;
+    // Statemanagement of our different features and labels.
+    const state = {
+      model: null,
+      points: [],
 
-    let featureMin;
-    let featureMax;
+      normalization: {
+        featureMin: null,
+        featureMax: null,
+        labelMin: null,
+        labelMax: null,
+      },
 
-    let labelMin;
-    let labelMax;
+      tensors: {
+        trainingFeatures: null,
+        trainingLabels: null,
+        testingFeatures: null,
+        testingLabels: null,
+      }
+    };
 
-    let normalisedFeature;
-    let normalisedLabel;
+    // Here we name our elements for easier use throughout the code.
+    const elements = {
+      modelStatus: document.getElementById("model-status"),
+      epochStatus: document.getElementById("epoch-status"),
+      testingStatus: document.getElementById("testing-status"),
 
-    let trainingFeatureTensor;
-    let testingFeatureTensor;
+      predictionInput: document.getElementById("prediction-input"),
+      predictionOutput: document.getElementById("prediction-output"),
 
-    let trainingLabelTensor;
-    let testingLabelTensor;
+      trainButton: document.getElementById("train-button"),
+      testButton: document.getElementById("test-button"),
+      predictButton: document.getElementById("predict-button"),
+      loadButton: document.getElementById("load-button"),
+      saveButton: document.getElementById("save-button"),
+    };
+
+    // UI elements. All our buttons and text fields are placed here we easier structure.
+    function setStatus(message) {
+      elements.modelStatus.innerText = message;
+    }
+
+    function setEpochStatus(epoch, loss) {
+      elements.epochStatus.innerText =
+        `Epoch ${epoch + 1} | Loss: ${loss.toFixed(4)}`;
+    }
+
+    function setTestingStatus(loss) {
+      elements.testingStatus.innerText =
+        `Test Loss: ${loss.toFixed(4)}`;
+    }
+
+    function enableButtons() {
+      elements.trainButton.disabled = false;
+      elements.testButton.disabled = false;
+      elements.loadButton.disabled = false;
+      elements.saveButton.disabled = false;
+    }
+
+    function enablePrediction() {
+      elements.predictButton.disabled = false;
+    }
 
     function toggleVisor() {
       tfvis.visor().toggle();
     }
 
-    async function plot(pointsArray, featureName, predictedPointsArray = null) {
+    // The visual part of the tensor. Our graphs and our plot lines are set inside this block
+    async function plot(pointsArray, predictedPointsArray = null) {
       const values = [pointsArray];
-      const series = ["original"];
-      if (Array.isArray(predictedPointsArray)) {
+      const series = ["Original"];
+
+      if (predictedPointsArray) {
         values.push(predictedPointsArray);
-        series.push("predicted");
+        series.push("Predicted");
       }
 
       tfvis.render.scatterplot(
-        { name: `${featureName} vs Insurance Cost` },
+        { name: "Age vs Insurance Cost" },
         { values, series },
         {
-          xLabel: featureName,
-          yLabel: "Price",
+          xLabel: "Age",
+          yLabel: "Insurance Cost",
+          height: 400
         }
       );
     }
 
     async function plotPredictionLine() {
       const [xs, ys] = tf.tidy(() => {
+        const normalizedXs = tf.linspace(0, 1, 100);
 
-        const normalisedXs = tf.linspace(0, 1, 100);
-        const normalisedYs = model.predict(normalisedXs.reshape([100, 1]));
+        const normalizedYs =
+          state.model.predict(
+            normalizedXs.reshape([100, 1])
+          );
 
-        const xs = denormalise(normalisedXs, normalisedFeature.min, normalisedFeature.max);
-        const ys = denormalise(normalisedYs, normalisedLabel.min, normalisedLabel.max);
+        const xs = denormalize(
+          normalizedXs,
+          state.normalization.featureMin,
+          state.normalization.featureMax
+        );
 
-        return [xs.dataSync(), ys.dataSync()];
+        const ys = denormalize(
+          normalizedYs,
+          state.normalization.labelMin,
+          state.normalization.labelMax
+        );
+
+        return [
+          xs.dataSync(),
+          ys.dataSync()
+        ];
       });
 
-      const predictedPoints = Array.from(xs).map((val, i) => {
-        return { x: val, y: ys[i] }
-      });
+      const predictedPoints = Array.from(xs).map((x, i) => ({
+        x,
+        y: ys[i]
+      }));
 
-      await plot(points, "Age", predictedPoints);
+      await plot(state.points, predictedPoints);
     }
 
-    function normalise(tensor, previousMin = null, previousMax = null) {
+    // Here we load the data and set what column we are looking at.
+    // In this instance we are looking at annual price compared to your age in the US.
+    async function loadDataset() {
+      const dataset =
+        tf.data.csv("medical_insurance_cost_dataset.csv");
+
+      const pointsDataset = dataset
+        .map(record => ({
+          x: Number(record.age),
+          y: Number(record.annual_medical_cost_usd)
+        }))
+        .filter(point =>
+          !isNaN(point.x) &&
+          !isNaN(point.y)
+        );
+
+      const points = await pointsDataset.toArray();
+      tf.util.shuffle(points);
+      return points;
+    }
+
+    function createTensors(points) {
+      return tf.tidy(() => {
+
+        const featureTensor = tf.tensor2d(
+          points.map(p => p.x),
+          [points.length, 1]
+        );
+
+        const labelTensor = tf.tensor2d(
+          points.map(p => p.y),
+          [points.length, 1]
+        );
+
+        return {
+          featureTensor,
+          labelTensor
+        };
+      });
+    }
+
+    // Normalization of the data we have.
+    function normalize(tensor, previousMin = null, previousMax = null) {
+
       const min = previousMin || tensor.min();
       const max = previousMax || tensor.max();
-      const normalisedTensor = tensor.sub(min).div(max.sub(min));
+
+      const normalizedTensor =
+        tensor.sub(min).div(max.sub(min));
+
       return {
-        tensor: normalisedTensor,
+        tensor: normalizedTensor,
         min,
         max
       };
     }
 
-    function denormalise(tensor, min, max) {
-      const denormalisedTensor = tensor.mul(max.sub(min)).add(min);
-      return denormalisedTensor;
+    function denormalize(tensor, min, max) {
+      return tensor
+        .mul(max.sub(min))
+        .add(min);
     }
 
+    function prepareData(featureTensor, labelTensor) {
+      const normalizedFeatures =
+        normalize(featureTensor);
+
+      const normalizedLabels =
+        normalize(labelTensor);
+
+      state.normalization.featureMin =
+        normalizedFeatures.min;
+
+      state.normalization.featureMax =
+        normalizedFeatures.max;
+
+      state.normalization.labelMin =
+        normalizedLabels.min;
+
+      state.normalization.labelMax =
+        normalizedLabels.max;
+
+      [
+        state.tensors.trainingFeatures,
+        state.tensors.testingFeatures
+      ] = tf.split(normalizedFeatures.tensor, 2);
+
+      [
+        state.tensors.trainingLabels,
+        state.tensors.testingLabels
+      ] = tf.split(normalizedLabels.tensor, 2);
+    }
+
+    // Creation of the model. Here we decide on how many dims we want, which decides how many columns we are looking at.
     function createModel() {
       const model = tf.sequential();
 
-      // Here we decide how many inputs we can have. Since we are only checking square feet, we only need inputDim to be 1.
       model.add(tf.layers.dense({
         inputDim: 1,
         units: 1,
@@ -194,230 +364,204 @@
         useBias: true
       }));
 
-      const optimizer = tf.train.adam(0.01);
-
       model.compile({
-        optimizer,
+        optimizer: tf.train.adam(0.01),
         loss: "meanSquaredError"
       });
 
-      tfvis.show.modelSummary({ name: `Model Summary`, tab: `Model` }, model);
-      tfvis.show.layer({ name: `Layer 1`, tab: `Model Inspection` }, model.getLayer(undefined, 0));
-
-      model.summary();
-
-      return model;
-    }
-
-    async function trainModel(model, trainingFeatureTensor, trainingLabelTensor) {
-      const { onBatchEnd, onEpochEnd } = tfvis.show.fitCallbacks(
-        { name: "Training Performance" },
-        ["loss"]
-      );
-
-      // Epochs decides how many times the AI runs the training model
-      await model.fit(trainingFeatureTensor, trainingLabelTensor, {
-        epochs: 5,
-        shuffle: true,
-        callbacks: {
-          onBatchEnd,
-          onEpochBegin: async function () {
-            tfvis.show.layer({ name: `Layer 1` }, model.getLayer(undefined, 0));
-            await plotPredictionLine();
-          },
-          onEpochEnd: async function (epoch, logs) {
-            document.getElementById("epoch-status").innerText =
-              `Epoch ${epoch + 1} | Loss: ${logs.loss.toFixed(4)}`;
-          }
-        }
-      });
-    }
-
-    async function train() {
-      await trainModel(
-        model,
-        trainingFeatureTensor,
-        trainingLabelTensor
-      );
-
-      await plotPredictionLine();
-
-      document
-        .getElementById("predict-button")
-        .removeAttribute("disabled");
-
-      console.log("Training complete!")
-    }
-
-    async function testModel(model, testingFeatureTensor, testingLabelTensor) {
-      const result = model.evaluate(testingFeatureTensor, testingLabelTensor);
-
-      const lossTensor = Array.isArray(result) ? result[0] : result;
-
-      const loss = await lossTensor.dataSync()[0];
-
-      return loss;
-    }
-
-    async function test() {
-      const loss = await testModel(
-        model,
-        testingFeatureTensor,
-        testingLabelTensor
-      );
-
-      document.getElementById("testing-status").innerText =
-        `Test Loss: ${loss.toFixed(4)}`;
-
-      const preds = model.predict(testingFeatureTensor);
-
-      await plot(
-        await testingFeatureTensor.array(),
-        "Age",
-        await preds.array()
-      );
-
-      console.log("Testing Complete!");
-    }
-
-    async function save() {
-      await model.save("localstorage://insurance-model");
-    }
-
-    async function load() {
-      model = await tf.loadLayersModel("localstorage://insurance-model");
-
-      document.getElementById("predict-button").removeAttribute("disabled");
-
-      console.log("Model loaded!");
-
       tfvis.show.modelSummary(
-        { name: `Model Summary`, tab: `Model` },
+        { name: "Model Summary", tab: "Model" },
         model
       );
 
       tfvis.show.layer(
-        { name: `Layer 1`, tab: `Model Inspection` },
+        { name: "Layer 1", tab: "Model Inspection" },
         model.getLayer(undefined, 0)
       );
 
-      await plotPredictionLine();
-
-      document.getElementById("model-status").innerText =
-        "Model loaded. Ready to predict.";
-
-      document.getElementById("train-button").removeAttribute("disabled");
-      document.getElementById("test-button").removeAttribute("disabled");
+      return model;
     }
 
-    async function predict() {
-      if (!model) {
-        console.log("Model not loaded.");
-        return;
-      }
+    // Training of the model. We set the epochs value depending on how many times we want the model to run.
+    // Higher epoch values results in better accuracy, but the training takes longer.
+    async function train() {
+      const callbacks = tfvis.show.fitCallbacks(
+        { name: "Training Performance" },
+        ["loss"]
+      );
 
-      const inputValue = Number(document.getElementById("prediction-input").value);
+      await state.model.fit(
+        state.tensors.trainingFeatures,
+        state.tensors.trainingLabels,
+        {
+          epochs: 5,
+          shuffle: true,
+          callbacks: {
+            onBatchEnd: callbacks.onBatchEnd,
+            onEpochEnd: async (epoch, logs) => {
+              setEpochStatus(epoch, logs.loss);
 
-      if (isNaN(inputValue)) {
-        document.getElementById("prediction-output").innerText =
+              tfvis.show.layer(
+                { name: "Layer 1" },
+                state.model.getLayer(undefined, 0)
+              );
+
+              await plotPredictionLine();
+            }
+          }
+        }
+      );
+
+      enablePrediction();
+      console.log("Training complete!");
+    }
+
+
+    // Testing the loss of our trained model.
+    async function test() {
+      const result = state.model.evaluate(
+        state.tensors.testingFeatures,
+        state.tensors.testingLabels
+      );
+
+      const lossTensor =
+        Array.isArray(result)
+          ? result[0]
+          : result;
+
+      const loss =
+        lossTensor.dataSync()[0];
+
+      setTestingStatus(loss);
+
+      const predictions = state.model.predict(
+        state.tensors.testingFeatures
+      );
+
+      const predictionValues =
+        await predictions.array();
+
+      const featureValues =
+        await state.tensors.testingFeatures.array();
+
+      await plot(
+        featureValues.map((x, i) => ({
+          x: x[0],
+          y: predictionValues[i][0]
+        }))
+      );
+
+      console.log("Testing complete");
+    }
+
+    // Prediction for the dataset.
+    function predictValue(value) {
+      return tf.tidy(() => {
+        const inputTensor =
+          tf.tensor2d([[value]]);
+
+        const normalizedInput =
+          inputTensor
+            .sub(state.normalization.featureMin)
+            .div(
+              state.normalization.featureMax.sub(
+                state.normalization.featureMin
+              )
+            );
+
+        const predictionTensor =
+          state.model.predict(normalizedInput);
+
+        const denormalizedPrediction =
+          denormalize(
+            predictionTensor,
+            state.normalization.labelMin,
+            state.normalization.labelMax
+          );
+
+        return denormalizedPrediction.dataSync()[0];
+      });
+    }
+
+    function predict() {
+      const value =
+        Number(elements.predictionInput.value);
+
+      if (isNaN(value)) {
+        elements.predictionOutput.innerText =
           "Please enter a valid age.";
         return;
       }
 
-      const inputTensor = tf.tensor2d([[inputValue]]);
-
-      // Normalise input
-      const normalisedInput = inputTensor
-        .sub(featureMin)
-        .div(featureMax.sub(featureMin));
-
-      // Predict
-      const predictionTensor =
-        model.predict(normalisedInput);
-
-      // Denormalise prediction
-      const denormalisedPrediction = denormalise(
-        predictionTensor,
-        labelMin,
-        labelMax
-      );
-
       const prediction =
-        denormalisedPrediction.dataSync()[0];
+        predictValue(value);
 
-      document.getElementById(
-        "prediction-output"
-      ).innerText =
+      elements.predictionOutput.innerText =
         `Predicted Insurance Cost: $${prediction.toFixed(2)}`;
     }
 
-    async function run() {
-      document.getElementById("model-status").innerText =
-        "Loading dataset...";
+    // Save and Load functions for the trained model. Gets stored in local storage for faster fetching after reload
+    async function saveModel() {
+      await state.model.save(
+        "localstorage://insurance-model"
+      );
 
-      const insuranceDataSet = tf.data.csv("medical_insurance_cost_dataset.csv");
-
-      const pointsDataset = insuranceDataSet.map(record => ({
-        x: Number(record.age),
-        y: Number(record.annual_medical_cost_usd),
-      }))
-        .filter(point =>
-          !isNaN(point.x) &&
-          !isNaN(point.y)
-        );
-
-      points = await pointsDataset.toArray();
-
-      if (points.length % 2 !== 0) {
-        points.pop();
-      }
-
-      tf.util.shuffle(points);
-      plot(points, "Age");
-
-      document.getElementById("model-status").innerText =
-        "Dataset loaded. Preparing tensors...";
-
-      // Create tensors
-      const featureValues = points.map(p => p.x);
-      const labelValues = points.map(p => p.y);
-
-      const featureTensor = tf.tensor2d(featureValues, [featureValues.length, 1]);
-      const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1]);
-
-      // Normalize
-      normalisedFeature = normalise(featureTensor);
-      normalisedLabel = normalise(labelTensor);
-
-      featureMin = normalisedFeature.min;
-      featureMax = normalisedFeature.max;
-      labelMin = normalisedLabel.min;
-      labelMax = normalisedLabel.max;
-
-      document.getElementById("model-status").innerText =
-        "Tensors ready. Creating model...";
-
-      // Split data
-      [trainingFeatureTensor, testingFeatureTensor] =
-        tf.split(normalisedFeature.tensor, 2);
-
-      [trainingLabelTensor, testingLabelTensor] =
-        tf.split(normalisedLabel.tensor, 2);
-
-      model = createModel();
-
-      document.getElementById("model-status").innerText =
-        "Model created. Ready to train.";
-
-      document.getElementById("train-button").removeAttribute("disabled");
-      document.getElementById("test-button").removeAttribute("disabled");
-      document.getElementById("load-button").removeAttribute("disabled");
-      document.getElementById("save-button").removeAttribute("disabled");
+      console.log("Model saved");
     }
 
-    run();
-  </script>
+    async function loadModel() {
+      state.model =
+        await tf.loadLayersModel(
+          "localstorage://insurance-model"
+        );
 
+      enablePrediction();
+
+      tfvis.show.modelSummary(
+        { name: "Model Summary", tab: "Model" },
+        state.model
+      );
+
+      tfvis.show.layer(
+        { name: "Layer 1", tab: "Model Inspection" },
+        state.model.getLayer(undefined, 0)
+      );
+
+      await plotPredictionLine();
+      setStatus("Model loaded successfully.");
+
+      console.log("Model loaded");
+    }
+
+
+    // Here we initialize the app, loading and creation of the model
+    async function initializeApp() {
+      setStatus("Loading dataset...");
+      state.points = await loadDataset();
+
+      await plot(state.points);
+      setStatus("Creating tensors...");
+
+      const {
+        featureTensor,
+        labelTensor
+      } = createTensors(state.points);
+
+      prepareData(
+        featureTensor,
+        labelTensor
+      );
+
+      setStatus("Creating model...");
+
+      state.model = createModel();
+      enableButtons();
+      setStatus("Ready to train.");
+    }
+
+    initializeApp();
+
+  </script>
 </body>
 
 </html>
